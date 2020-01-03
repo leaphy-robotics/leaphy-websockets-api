@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description:
+  Defines the resources for the Leaphy Robocoder Websockets API
+
+Parameters:
+  EnvironmentParameter:
+    Type: string
+    Default: test
+    AllowedValues:
+      - test
+      - prod
+    Description: Enter the environment this template should be deployed to. Default is test
+
+Resources:
+  ApiGateway
+    Type: 'AWS::ApiGatewayV2::Api'
+    Properties:
+      Name: ${EnvironmentParameter}-robocoder-ws-api
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+      ApiKeySelectionExpression: $request.header.x-api-key
