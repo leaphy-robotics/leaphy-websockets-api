@@ -13,8 +13,8 @@ Parameters:
     Description: Enter the environment this template should be deployed to. Default is test
 
 Resources:
-  ApiGateway
-    Type: 'AWS::ApiGatewayV2::Api'
+  ApiGateway:
+    Type: AWS::ApiGatewayV2::Api
     Properties:
       Name: ${EnvironmentParameter}-robocoder-ws-api
       ProtocolType: WEBSOCKET
