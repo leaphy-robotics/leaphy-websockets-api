@@ -17,7 +17,7 @@ steps:
     regionName: 'eu-west-1'
     awsCommand: 'cloudformation'
     awsSubCommand: 'package'
-    awsArguments: '--template-file src/cfn-template.yaml --s3-bucket cfn-templates --output-template-file $(Build.ArtifactStagingDirectory)/test-packaged-template.json'
+    awsArguments: '--template-file src/cfn-template.yml --s3-bucket cfn-templates --output-template-file $(Build.ArtifactStagingDirectory)/test-packaged-template.json'
 
 - task: PublishBuildArtifacts@1
   inputs:
