@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
+Transform: 'AWS::Serverless-2016-10-31'
 
 Description:
   Defines the resources for the Leaphy Robocoder Websockets API
@@ -20,3 +21,30 @@ Resources:
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: $request.body.action
       ApiKeySelectionExpression: $request.header.x-api-key
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: {}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+
+  CompileLambda:
+    Type: AWS::Lambda::Function
+    Properties: 
+      Description: >-
+        Compiles a sketch to a binary and puts it to S3
+      Handler: compile.handler
+      Role: !GetAtt LambdaRole.Arn
+      CodeUri: lambda/compile/
+      Runtime: provided
+      Timeout: 60
+      MemorySize: 512
+
+  CompileRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri: !Ref CompileLambda
