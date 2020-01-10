@@ -5,10 +5,22 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: CopyFiles@2
+  continueOnError: false
+  inputs:
+    sourceFolder: 'src' 
+    targetFolder: '$(Build.ArtifactStagingDirectory)'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- task: AWSCLI@1
+  inputs:
+    awsCredentials: 'liquidlogic'
+    regionName: 'eu-west-1'
+    awsCommand: 'cloudformation'
+    awsSubCommand: 'package'
+    awsArguments: '--template-file src/cfn-template.yaml --s3-bucket cfn-templates --output-template-file $(Build.ArtifactStagingDirectory)/test-packaged-template.json'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
