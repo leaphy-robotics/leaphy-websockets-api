@@ -5,7 +5,7 @@ Description:
 
 Parameters:
   EnvironmentParameter:
-    Type: string
+    Type: String
     Default: test
     AllowedValues:
       - test
@@ -16,7 +16,7 @@ Resources:
   ApiGateway:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: ${EnvironmentParameter}-robocoder-ws-api
+      Name: Sub! "${EnvironmentParameter}-robocoder-ws-api"
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: $request.body.action
       ApiKeySelectionExpression: $request.header.x-api-key
