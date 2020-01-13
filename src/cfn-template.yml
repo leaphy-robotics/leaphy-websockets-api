@@ -12,6 +12,10 @@ Parameters:
       - test
       - prod
     Description: Enter the environment this template should be deployed to. Default is test
+  CompileLayerParameter:
+    Type: String
+    Default: arn:aws:lambda:eu-west-1:728909196542:layer:test-layer:17
+    Description: Enter the layer used as custom runtime for the Compile lambda
 
 Resources:
   ApiGateway:
@@ -25,21 +29,29 @@ Resources:
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      AssumeRolePolicyDocument: {}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ["lambda.amazonaws.com" ]
+            Action: "sts:AssumeRole"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSLambdaExecute
 
   CompileLambda:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Properties: 
+      Role: !GetAtt LambdaRole.Arn
       Description: >-
         Compiles a sketch to a binary and puts it to S3
       Handler: compile.handler
-      Role: !GetAtt LambdaRole.Arn
       CodeUri: lambda/compile/
       Runtime: provided
       Timeout: 60
-      MemorySize: 512
+      MemorySize: 1024
+      Layers: 
+        - !Ref CompileLayerParameter
 
   CompileRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
@@ -47,4 +59,101 @@ Resources:
       ApiId: !Ref ApiGateway
       Description: Lambda Integration
       IntegrationType: AWS
-      IntegrationUri: !Ref CompileLambda
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileLambda.Arn}/invocations"
+
+  CompileRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - CompileRouteIntegration
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: compile
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${CompileRouteIntegration}"
+
+  ConnectLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: index.handler
+      Code:
+        ZipFile: !Sub |
+          const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();
+          function addConnectionId(connectionId) {
+              return ddb.put({
+          		TableName: '${ConnectionsTable}',
+                  Item: {
+          			connectionid : connectionId
+          		},
+          	}).promise();
+          }
+          exports.handler = (event, context, callback) => {
+              const connectionId = event.requestContext.connectionId;
+              addConnectionId(connectionId).then(() => {
+              callback(null, {
+          		statusCode: 200,
+                  })
+          	});
+          }
+      Description: Register a connection to the WS API
+
+  ConnectRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectLambda.Arn}/invocations"
+
+  DisconnectLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: index.handler
+      Code:
+        ZipFile: !Sub |
+          const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();
+          function removeConnectionId(connectionId) {
+              return ddb.delete({
+          		TableName: '${ConnectionsTable}',
+                  Key: {
+          			connectionid : connectionId
+          		},
+          	}).promise();
+          }
+          exports.handler = (event, context, callback) => {
+              const connectionId = event.requestContext.connectionId;
+              removeConnectionId(connectionId).then(() => {
+              callback(null, {
+          		statusCode: 200,
+                  })
+          	});
+          }
+      Description: Deregister a connection to the WS API
+
+  DisconnectRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectLambda.Arn}/invocations"
+
+  ConnectionsTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions:
+        - 
+          AttributeName: "connectionid"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "connectionid"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      TableName: !Sub "${EnvironmentParameter}-robocoder-ws-connections"
+         

@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Defines the resources for the Leaphy Robocoder Websockets API
+Parameters:
+  EnvironmentParameter:
+    Type: String
+    Default: test
+    AllowedValues:
+    - test
+    - prod
+    Description: Enter the environment this template should be deployed to. Default
+      is test
+  CompileLayerParameter:
+    Type: String
+    Default: arn:aws:lambda:eu-west-1:728909196542:layer:test-layer:17
+    Description: Enter the layer used as custom runtime for the Compile lambda
+Resources:
+  ApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name:
+        Fn::Sub: ${EnvironmentParameter}-robocoder-ws-api
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+      ApiKeySelectionExpression: $request.header.x-api-key
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AWSLambdaExecute
+  CompileLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role:
+        Fn::GetAtt:
+        - LambdaRole
+        - Arn
+      Description: Compiles a sketch to a binary and puts it to S3
+      Handler: compile.handler
+      CodeUri: s3://robocoder-cfn-templates/5b405e585aa97657c61996ca4fe90e48
+      Runtime: provided
+      Timeout: 60
+      MemorySize: 1024
+      Layers:
+      - Ref: CompileLayerParameter
+  CompileRouteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileLambda.Arn}/invocations
+  CompileRoute:
+    Type: AWS::ApiGatewayV2::Route
+    DependsOn:
+    - CompileRouteIntegration
+    Properties:
+      ApiId:
+        Ref: ApiGateway
+      RouteKey: compile
+      AuthorizationType: NONE
+      Target:
+        Fn::Sub: integrations/${CompileRouteIntegration}
+  ConnectLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role:
+        Fn::GetAtt:
+        - LambdaRole
+        - Arn
+      Handler: index.handler
+      Code:
+        ZipFile:
+          Fn::Sub: "const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();\n\
+            function addConnectionId(connectionId) {\n    return ddb.put({\n\t\tTableName:\
+            \ '${ConnectionsTable}',\n        Item: {\n\t\t\tconnectionid : connectionId\n\
+            \t\t},\n\t}).promise();\n}\nexports.handler = (event, context, callback)\
+            \ => {\n    const connectionId = event.requestContext.connectionId;\n\
+            \    addConnectionId(connectionId).then(() => {\n    callback(null, {\n\
+            \t\tstatusCode: 200,\n        })\n\t});\n}\n"
+      Description: Register a connection to the WS API
+  ConnectRouteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectLambda.Arn}/invocations
+  DisconnectLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role:
+        Fn::GetAtt:
+        - LambdaRole
+        - Arn
+      Handler: index.handler
+      Code:
+        ZipFile:
+          Fn::Sub: "const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();\n\
+            function removeConnectionId(connectionId) {\n    return ddb.delete({\n\
+            \t\tTableName: '${ConnectionsTable}',\n        Key: {\n\t\t\tconnectionid\
+            \ : connectionId\n\t\t},\n\t}).promise();\n}\nexports.handler = (event,\
+            \ context, callback) => {\n    const connectionId = event.requestContext.connectionId;\n\
+            \    removeConnectionId(connectionId).then(() => {\n    callback(null,\
+            \ {\n\t\tstatusCode: 200,\n        })\n\t});\n}\n"
+      Description: Deregister a connection to the WS API
+  DisconnectRouteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ApiGateway
+      Description: Lambda Integration
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectLambda.Arn}/invocations
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: connectionid
+        AttributeType: S
+      KeySchema:
+      - AttributeName: connectionid
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      TableName:
+        Fn::Sub: ${EnvironmentParameter}-robocoder-ws-connections
