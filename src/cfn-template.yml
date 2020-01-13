@@ -58,7 +58,7 @@ Resources:
     Properties:
       ApiId: !Ref ApiGateway
       Description: Lambda Integration
-      IntegrationType: AWS
+      IntegrationType: AWS_PROXY
       IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileLambda.Arn}/invocations"
 
   CompileRoute:
@@ -103,8 +103,18 @@ Resources:
     Properties:
       ApiId: !Ref ApiGateway
       Description: Lambda Integration
-      IntegrationType: AWS
+      IntegrationType: AWS_PROXY
       IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectLambda.Arn}/invocations"
+
+  ConnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - ConnectRouteIntegration
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${ConnectRouteIntegration}"
 
   DisconnectLambda:
     Type: AWS::Lambda::Function
@@ -138,8 +148,18 @@ Resources:
     Properties:
       ApiId: !Ref ApiGateway
       Description: Lambda Integration
-      IntegrationType: AWS
+      IntegrationType: AWS_PROXY
       IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectLambda.Arn}/invocations"
+
+  DisconnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - DisconnectRouteIntegration
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${DisconnectRouteIntegration}"
 
   ConnectionsTable: 
     Type: AWS::DynamoDB::Table
