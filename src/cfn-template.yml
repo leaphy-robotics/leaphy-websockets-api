@@ -7,7 +7,7 @@ Description:
 # TODO
 # - Add compile target S3 bucket
 # - Define function names for lambdas
-# - Point compile lambda to non-test layer
+# - Configure response integration for Compile proxy lambda
 
 Parameters:
   EnvironmentParameter:
@@ -19,7 +19,7 @@ Parameters:
     Description: Enter the environment this template should be deployed to. Default is test
   CompileLayerParameter:
     Type: String
-    Default: arn:aws:lambda:eu-west-1:728909196542:layer:test-layer:17
+    Default: arn:aws:lambda:eu-west-1:728909196542:layer:leaphy-compile-lambda-runtime:3
     Description: Enter the layer used as custom runtime for the Compile lambda
 
 Resources:
@@ -65,70 +65,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSLambdaExecute
 
-  CompileLambda:
-    Type: AWS::Serverless::Function
-    Properties: 
-      Role: !GetAtt LambdaRole.Arn
-      Description: >-
-        Compiles a sketch to a binary and puts it to S3
-      Handler: compile.handler
-      CodeUri: lambda/compile/
-      Runtime: provided
-      Timeout: 60
-      MemorySize: 1024
-      Layers: 
-        - !Ref CompileLayerParameter
-
-  CompileProxyLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Runtime: nodejs12.x
-      Role: !GetAtt LambdaRole.Arn
-      Handler: index.handler
-      Code:
-        ZipFile: !Sub |
-          const AWS = require('aws-sdk');const lambda = new AWS.Lambda();
-          exports.handler = (event, context, callback) => {
-              const params = {
-                FunctionName: "${CompileLambda}",
-                InvocationType: "Event",
-                Payload: "{ \"data\": \"TestPayload\" }"
-              };
-              lambda.invoke(params, (err, data) => {
-                if(err) {
-                  console.log(err, err.stack);
-                  callback(null, {
-                    statusCode: 500
-                  });
-                } else {
-                  console.log(data);
-                  callback(null, {
-                    statusCode: 200,
-                    body: JSON.stringify({message: "Compile Request submitted"})
-                  });
-                }
-              });
-          	};
-      Description: Register a connection to the WS API
-
-  CompileProxyRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileProxyLambda.Arn}/invocations"
-
-  CompileProxyRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - CompileProxyRouteIntegration
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: compile
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${CompileProxyRouteIntegration}"
-
   ConnectLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -137,12 +73,13 @@ Resources:
       Handler: index.handler
       Code:
         ZipFile: !Sub |
-          const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();
+          const AWS = require('aws-sdk');
+          const ddb = new AWS.DynamoDB.DocumentClient();
           function addConnectionId(connectionId) {
               return ddb.put({
           		TableName: '${ConnectionsTable}',
                   Item: {
-          			connectionid : connectionId
+          			ConnectionId : connectionId
           		},
           	}).promise();
           }
@@ -154,7 +91,7 @@ Resources:
                   })
           	});
           }
-      Description: Register a connection to the WS API
+      Description: Invoked when an WS upgrade request succeeds
 
   ConnectRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
@@ -174,6 +111,154 @@ Resources:
       AuthorizationType: NONE
       Target: !Sub "integrations/${ConnectRouteIntegration}"
 
+  ConnectLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebsocketsAPI
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConnectLambda
+      Principal: apigateway.amazonaws.com
+
+
+  RegisterClientLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: register-client.handler
+      CodeUri: lambda/register-client/
+      Description: Register a client-robot connection to the WS API
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+
+  RegisterClientRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      Description: Lambda Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegisterClientLambda.Arn}/invocations"
+
+  RegisterClientRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - RegisterClientRouteIntegration
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      RouteKey: register-client
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${RegisterClientRouteIntegration}"
+
+  RegisterClientLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebsocketsAPI
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RegisterClientLambda
+      Principal: apigateway.amazonaws.com
+
+
+  RegisterRobotLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: register-robot.handler
+      CodeUri: lambda/register-robot/
+      Description: Register a robot connection to the WS API
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+
+  RegisterRobotRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      Description: Lambda Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegisterRobotLambda.Arn}/invocations"
+
+  RegisterRobotRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - RegisterRobotRouteIntegration
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      RouteKey: register-robot
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${RegisterRobotRouteIntegration}"
+
+  RegisterRobotLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebsocketsAPI
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RegisterRobotLambda
+      Principal: apigateway.amazonaws.com
+
+
+  CompileProxyLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: compile-proxy.handler
+      CodeUri: lambda/compile-proxy/
+      Description: Triggers a compilation by invoking the compile lambda
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+          COMPILE_LAMBDA: !Ref CompileLambda
+
+  CompileProxyRouteIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      Description: Lambda Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileProxyLambda.Arn}/invocations"
+
+  CompileProxyRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn:
+      - CompileProxyRouteIntegration
+    Properties:
+      ApiId: !Ref WebsocketsAPI
+      RouteKey: compile
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${CompileProxyRouteIntegration}"
+
+  CompileProxyLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebsocketsAPI
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CompileProxyLambda
+      Principal: apigateway.amazonaws.com
+
+
+  CompileLambda:
+    Type: AWS::Serverless::Function
+    Properties: 
+      Role: !GetAtt LambdaRole.Arn
+      Description: >-
+        Compiles a sketch to a binary and puts it to S3
+      Handler: compile.handler
+      CodeUri: lambda/compile/
+      Runtime: provided
+      Timeout: 60
+      MemorySize: 1024
+      Layers: 
+        - !Ref CompileLayerParameter
+      Environment:
+        Variables: 
+          WS_ENDPOINT : !Sub "wss://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
+
   DisconnectLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -187,7 +272,7 @@ Resources:
               return ddb.delete({
           		TableName: '${ConnectionsTable}',
                   Key: {
-          			connectionid : connectionId
+          			ConnectionId : connectionId
           		},
           	}).promise();
           }
@@ -218,6 +303,16 @@ Resources:
       RouteKey: $disconnect
       AuthorizationType: NONE
       Target: !Sub "integrations/${DisconnectRouteIntegration}"
+
+  DisconnectLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - WebsocketsAPI
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DisconnectLambda
+      Principal: apigateway.amazonaws.com
+         
 
   DefaultLambda:
     Type: AWS::Lambda::Function
@@ -250,40 +345,6 @@ Resources:
       AuthorizationType: NONE
       Target: !Sub "integrations/${DefaultRouteIntegration}"
 
-  ConnectionsTable: 
-    Type: AWS::DynamoDB::Table
-    Properties: 
-      AttributeDefinitions:
-        - 
-          AttributeName: "connectionid"
-          AttributeType: "S"
-      KeySchema:
-        - 
-          AttributeName: "connectionid"
-          KeyType: "HASH"
-      ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
-      TableName: !Sub "${EnvironmentParameter}-robocoder-ws-connections"
-
-  ConnectLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ConnectLambda
-      Principal: apigateway.amazonaws.com
-
-  DisconnectLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref DisconnectLambda
-      Principal: apigateway.amazonaws.com
-         
   DefaultLambdaPermission:
     Type: AWS::Lambda::Permission
     DependsOn:
@@ -293,11 +354,37 @@ Resources:
       FunctionName: !Ref DefaultLambda
       Principal: apigateway.amazonaws.com
 
-  CompileProxyLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref CompileProxyLambda
-      Principal: apigateway.amazonaws.com
+
+  ConnectionsTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions:
+        - 
+          AttributeName: "ConnectionId"
+          AttributeType: "S"
+        - 
+          AttributeName: "RobotId"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "ConnectionId"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      TableName: !Sub "${EnvironmentParameter}-robocoder-ws-connections"
+      GlobalSecondaryIndexes: 
+        - 
+          IndexName: "robotGSI"
+          KeySchema: 
+            - 
+              AttributeName: "RobotId"
+              KeyType: "HASH"
+          Projection: 
+            NonKeyAttributes: 
+              - "ConnectionId"
+              - "IsRobotConnection"
+            ProjectionType: "INCLUDE"
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 2
+            WriteCapacityUnits: 2
