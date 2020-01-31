@@ -1,6 +1,7 @@
 const AWS = require('aws-sdk');
 const ddb = new AWS.DynamoDB.DocumentClient();
 const tableName = process.env.CONNECTIONS_TABLE;
+const postToConnectionService = new require('./post-to-connection.service')();
 
 exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
@@ -22,6 +23,7 @@ exports.handler = async (event, context) => {
     }
     try {
         const result = await ddb.update(params).promise();
+        postToConnectionService.sendMessage(connectionId, {message: `Succesfully registered client to robot ${robotId}`});
     } catch (error) {
         console.log(error);
     }
