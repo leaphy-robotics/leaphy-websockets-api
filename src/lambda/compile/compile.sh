@@ -5,8 +5,9 @@ function handler () {
     ROBOTCONNECTIONID=$(echo $EVENT_DATA | jq -r '.robotConnectionId')
     SKETCH=$(echo $EVENT_DATA | jq -r '.sketch')
     ROBOTID=$(echo $EVENT_DATA | jq -r '.robotId')
-    
-    aws apigatewaymanagementapi post-to-connection --endpoint https://1mqy98mwx7.execute-api.eu-west-1.amazonaws.com/test --data "{\"message\": \"Starting compilation\"}" --connection-id "$CLIENTCONNECTIONID"
+    ENDPOINT=$(printenv CONNECTION_URL)
+
+    aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"message\": \"Starting compilation\"}" --connection-id "$CLIENTCONNECTIONID"
     
     TIMESTAMP=$(echo $(($(date +%s%N)/1000000))) # Number of milliseconds since epoch
     mkdir -p "/tmp/${ROBOTID}/${TIMESTAMP}"
@@ -16,11 +17,11 @@ function handler () {
     
     arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 $LOCALDESTINATION --config-file /opt/bin/arduino-cli.yaml
 
-    aws apigatewaymanagementapi post-to-connection --endpoint https://1mqy98mwx7.execute-api.eu-west-1.amazonaws.com/test --data "{\"message\": \"Finished compilation\"}" --connection-id "$CLIENTCONNECTIONID"
+    aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"message\": \"Finished compilation\"}" --connection-id "$CLIENTCONNECTIONID"
     
     aws s3 cp "${LOCALDESTINATION}.esp8266.esp8266.nodemcuv2.bin" $CLOUDDESTINATION
     
-    aws apigatewaymanagementapi post-to-connection --endpoint https://1mqy98mwx7.execute-api.eu-west-1.amazonaws.com/test --data "{\"message\": \"Sketch published\"}" --connection-id "$ROBOTCONNECTIONID"
+    aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"message\": \"Sketch published\"}" --connection-id "$ROBOTCONNECTIONID"
     
     echo "$EVENT_DATA" 1>&2; #Sends the response
 }

@@ -121,43 +121,44 @@ Resources:
       Principal: apigateway.amazonaws.com
 
 
-  RegisterClientLambda:
+  PairClientLambda:
     Type: AWS::Serverless::Function
     Properties:
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
-      Handler: register-client.handler
-      CodeUri: lambda/register-client/
-      Description: Register a client-robot connection to the WS API
+      Handler: pair-client.handler
+      CodeUri: lambda/pair-client/
+      Description: Pair a client to a registered robot
       Environment:
         Variables: 
           CONNECTIONS_TABLE : !Ref ConnectionsTable
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  RegisterClientRouteIntegration:
+  PairClientRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
     Properties:
       ApiId: !Ref WebsocketsAPI
       Description: Lambda Integration
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegisterClientLambda.Arn}/invocations"
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PairClientLambda.Arn}/invocations"
 
-  RegisterClientRoute:
+  PairClientRoute:
     Type: 'AWS::ApiGatewayV2::Route'
     DependsOn:
-      - RegisterClientRouteIntegration
+      - PairClientRouteIntegration
     Properties:
       ApiId: !Ref WebsocketsAPI
-      RouteKey: register-client
+      RouteKey: pair-client
       AuthorizationType: NONE
-      Target: !Sub "integrations/${RegisterClientRouteIntegration}"
+      Target: !Sub "integrations/${PairClientRouteIntegration}"
 
-  RegisterClientLambdaPermission:
+  PairClientLambdaPermission:
     Type: AWS::Lambda::Permission
     DependsOn:
       - WebsocketsAPI
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref RegisterClientLambda
+      FunctionName: !Ref PairClientLambda
       Principal: apigateway.amazonaws.com
 
 
@@ -172,6 +173,7 @@ Resources:
       Environment:
         Variables: 
           CONNECTIONS_TABLE : !Ref ConnectionsTable
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
   RegisterRobotRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
@@ -213,6 +215,7 @@ Resources:
         Variables: 
           CONNECTIONS_TABLE : !Ref ConnectionsTable
           COMPILE_LAMBDA: !Ref CompileLambda
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
   CompileProxyRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
@@ -257,8 +260,9 @@ Resources:
         - !Ref CompileLayerParameter
       Environment:
         Variables: 
-          WS_ENDPOINT : !Sub "wss://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
+  
   DisconnectLambda:
     Type: AWS::Lambda::Function
     Properties:
