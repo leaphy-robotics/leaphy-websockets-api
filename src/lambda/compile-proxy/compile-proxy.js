@@ -1,4 +1,6 @@
 const AWS = require('aws-sdk');
+const decomment = require('decomment');
+
 const lambda = new AWS.Lambda();
 const ddb = new AWS.DynamoDB.DocumentClient();
 const tableName = process.env.CONNECTIONS_TABLE;
@@ -13,9 +15,7 @@ exports.handler = async (event, context) => {
     const connectionId = event.requestContext.connectionId;
     const requestBody = JSON.parse(event.body); 
     const robotId = requestBody.robotId;
-    const sketch = requestBody.sketch;
-
-    console.log(sketch);
+    const sketch = decomment.text(requestBody.sketch);
 
     const message = {
         event: 'COMPILE_REQUEST_RECEIVED',
@@ -25,8 +25,6 @@ exports.handler = async (event, context) => {
         ConnectionId: connectionId,
         Data: JSON.stringify(message)
     }).promise();
-
-    return {statusCode: 200};
 
     // Find the robot connectionId using the RobotId
     const queryParams = {
