@@ -12,8 +12,6 @@ exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
     const robotId = requestBody.robotId;
     const connectionId = event.requestContext.connectionId;
-    
-    // TODO: Handle situation where robot is not registered (in the same wifi SSID?)
 
     // Add robotId to the client connection record
     const params = {
@@ -22,14 +20,41 @@ exports.handler = async (event, context) => {
             ConnectionId: connectionId
         },
         UpdateExpression: "set RobotId = :r, IsRobotConnection=:b",
-        ExpressionAttributeValues:{
-            ":r":robotId,
-            ":b":false
+        ExpressionAttributeValues: {
+            ":r": robotId,
+            ":b": false
         },
-        ReturnValues:"UPDATED_NEW"
+        ReturnValues: "UPDATED_NEW"
     }
     try {
-        const result = await ddb.update(params).promise();
+        await ddb.update(params).promise();
+    } catch (error) {
+        console.log(error);
+        return { statusCode: 500 };
+    }
+
+    // Verify that robot is registered
+    const queryParams = {
+        TableName: tableName,
+        IndexName: "robotGSI",
+        KeyConditionExpression: "#r = :rid",
+        ExpressionAttributeNames: {
+            "#r": "RobotId"
+        },
+        ExpressionAttributeValues: {
+            ":rid": robotId
+        }
+    };
+
+    let data;
+    try {
+        data = await ddb.query(queryParams).promise();
+    } catch (error) {
+        console.log(error);
+        return { statusCode: 500 };
+    }
+    const robotConnection = data.Items.filter((item) => item.IsRobotConnection === true)[0];
+    if (robotConnection) {
         const message = {
             event: 'CLIENT_PAIRED_WITH_ROBOT',
             message: `Succesfully paired client to robot ${robotId}`
@@ -38,9 +63,18 @@ exports.handler = async (event, context) => {
             ConnectionId: connectionId,
             Data: JSON.stringify(message)
         }).promise();
-    } catch (error) {
-        console.log(error);
+
+    } else {
+        const failedMessage = {
+            event: 'FAILED_PAIRING_WITH_ROBOT',
+            message: `Robot with ${robotId} was not registered`
+        };
+        await apiGwMngmnt.postToConnection({
+            ConnectionId: connectionId,
+            Data: JSON.stringify(failedMessage)
+        }).promise();
     }
-    
-    return { statusCode: 200};
+
+
+    return { statusCode: 200 };
 }

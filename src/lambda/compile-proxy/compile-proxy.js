@@ -17,13 +17,13 @@ exports.handler = async (event, context) => {
     const robotId = requestBody.robotId;
     const sketch = decomment.text(requestBody.sketch);
 
-    const message = {
-        event: 'COMPILE_REQUEST_RECEIVED',
-        message: `Succesfully received compile request`
+    const prepareMessage = {
+        event: 'PREPARING_COMPILATION_ENVIRONMENT',
+        message: `Preparing compilation pipeline`
     };
     await apiGwMngmnt.postToConnection({
         ConnectionId: connectionId,
-        Data: JSON.stringify(message)
+        Data: JSON.stringify(prepareMessage)
     }).promise();
 
     // Find the robot connectionId using the RobotId
@@ -47,13 +47,25 @@ exports.handler = async (event, context) => {
         return { statusCode: 500 };
     }
     
-    const robotClientId = data.Items.filter((item) => item.IsRobotConnection === true)[0].ConnectionId;
+    const robotConnection = data.Items.filter((item) => item.IsRobotConnection === true)[0];
+
+    if(!robotConnection) {
+        const noRobotMessage = {
+            event: 'ROBOT_NOT_CONNECTED',
+            message: `Robot ${robotId} not connected`
+        };
+        await apiGwMngmnt.postToConnection({
+            ConnectionId: connectionId,
+            Data: JSON.stringify(noRobotMessage)
+        }).promise();
+        return {statusCode: 200};
+    }
 
     const payload = { 
         sketch: sketch,
         robotId: robotId,
         clientConnectionId: event.requestContext.connectionId,
-        robotConnectionId: robotClientId
+        robotConnectionId: robotConnection.ConnectionId
     };
     const params = {
         FunctionName: lambdaName,
@@ -68,6 +80,5 @@ exports.handler = async (event, context) => {
         console.log(error);
         return { statusCode: 500 };
     }
-    console.log(result);
     return {statusCode: 200};
 };
