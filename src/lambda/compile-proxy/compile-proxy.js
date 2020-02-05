@@ -50,13 +50,13 @@ exports.handler = async (event, context) => {
     const robotConnection = data.Items.filter((item) => item.IsRobotConnection === true)[0];
 
     if(!robotConnection) {
-        const noRobotMessage = {
-            event: 'ROBOT_NOT_CONNECTED',
-            message: `Robot ${robotId} not connected`
+        const robotDisconnectedMessage = {
+            event: 'ROBOT_DISCONNECTED',
+            message: `Robot ${robotId} disconnected`
         };
         await apiGwMngmnt.postToConnection({
             ConnectionId: connectionId,
-            Data: JSON.stringify(noRobotMessage)
+            Data: JSON.stringify(robotDisconnectedMessage)
         }).promise();
         return {statusCode: 200};
     }

@@ -255,7 +255,7 @@ Resources:
       CodeUri: lambda/compile/
       Runtime: provided
       Timeout: 60
-      MemorySize: 1024
+      MemorySize: 3008
       Layers: 
         - !Ref CompileLayerParameter
       Environment:
@@ -264,31 +264,17 @@ Resources:
 
   
   DisconnectLambda:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Properties:
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
-      Handler: index.handler
-      Code:
-        ZipFile: !Sub |
-          const AWS = require('aws-sdk');const ddb = new AWS.DynamoDB.DocumentClient();
-          function removeConnectionId(connectionId) {
-              return ddb.delete({
-          		TableName: '${ConnectionsTable}',
-                  Key: {
-          			ConnectionId : connectionId
-          		},
-          	}).promise();
-          }
-          exports.handler = (event, context, callback) => {
-              const connectionId = event.requestContext.connectionId;
-              removeConnectionId(connectionId).then(() => {
-              callback(null, {
-          		statusCode: 200,
-                  })
-          	});
-          }
+      Handler: disconnect.handler
+      CodeUri: lambda/disconnect/
       Description: Deregister a connection to the WS API
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
   DisconnectRouteIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'

@@ -65,16 +65,15 @@ exports.handler = async (event, context) => {
         }).promise();
 
     } else {
-        const failedMessage = {
-            event: 'FAILED_PAIRING_WITH_ROBOT',
-            message: `Robot with ${robotId} was not registered`
+        const robotDisconnectedMessage = {
+            event: 'ROBOT_DISCONNECTED',
+            message: `Robot ${robotId} disconnected`
         };
         await apiGwMngmnt.postToConnection({
             ConnectionId: connectionId,
-            Data: JSON.stringify(failedMessage)
+            Data: JSON.stringify(robotDisconnectedMessage)
         }).promise();
     }
-
 
     return { statusCode: 200 };
 }
