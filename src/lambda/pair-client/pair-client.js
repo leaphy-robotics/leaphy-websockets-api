@@ -8,13 +8,23 @@ const apiGwMngmnt = new AWS.ApiGatewayManagementApi({
     endpoint: url
 })
 
-exports.handler = async (event, context) => {
-    const requestBody = JSON.parse(event.body);
-    const robotId = requestBody.robotId;
-    const connectionId = event.requestContext.connectionId;
+const getRobotIdByPairingCodeParams = (pairingCode) => {
+    const queryParams = {
+        TableName: tableName,
+        IndexName: "PairingCodeGSI",
+        KeyConditionExpression: "#p = :pid",
+        ExpressionAttributeNames: {
+            "#p": "PairingCode"
+        },
+        ExpressionAttributeValues: {
+            ":pid": pairingCode
+        }
+    };
+    return queryParams;
+}
 
-    // Add robotId to the client connection record
-    const params = {
+const getUpdateClientConnectionParams = (connectionId, robotId) => {
+    const updateParams = {
         TableName: tableName,
         Key: {
             ConnectionId: connectionId
@@ -23,57 +33,53 @@ exports.handler = async (event, context) => {
         ExpressionAttributeValues: {
             ":r": robotId,
             ":b": false
-        },
-        ReturnValues: "UPDATED_NEW"
-    }
-    try {
-        await ddb.update(params).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
-    }
-
-    // Verify that robot is registered
-    const queryParams = {
-        TableName: tableName,
-        IndexName: "robotGSI",
-        KeyConditionExpression: "#r = :rid",
-        ExpressionAttributeNames: {
-            "#r": "RobotId"
-        },
-        ExpressionAttributeValues: {
-            ":rid": robotId
         }
-    };
+    }
+    return updateParams;
+}
 
-    let data;
+const postMessageToConnection = async (event, message, connectionId) => {
+    const payload = {
+        event: event,
+        message: message
+    };
+    await apiGwMngmnt.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify(payload)
+    }).promise();
+}
+
+exports.handler = async (event, context) => {
+    const requestBody = JSON.parse(event.body);
+    const pairingCode = requestBody.pairingCode;
+    const connectionId = event.requestContext.connectionId;
+
+    // Find the robot with the pairing code
+    const findRobotParams = getRobotIdByPairingCodeParams(pairingCode);
+    let robotData;
     try {
-        data = await ddb.query(queryParams).promise();
+        robotData = await ddb.query(findRobotParams).promise();
     } catch (error) {
         console.log(error);
         return { statusCode: 500 };
     }
-    const robotConnection = data.Items.filter((item) => item.IsRobotConnection === true)[0];
-    if (robotConnection) {
-        const message = {
-            event: 'CLIENT_PAIRED_WITH_ROBOT',
-            message: `Succesfully paired client to robot ${robotId}`
-        };
-        await apiGwMngmnt.postToConnection({
-            ConnectionId: connectionId,
-            Data: JSON.stringify(message)
-        }).promise();
+    const robotConnection = robotData.Items.filter((item) => item.IsRobotConnection === true)[0];
 
-    } else {
-        const robotDisconnectedMessage = {
-            event: 'ROBOT_DISCONNECTED',
-            message: `Robot ${robotId} disconnected`
-        };
-        await apiGwMngmnt.postToConnection({
-            ConnectionId: connectionId,
-            Data: JSON.stringify(robotDisconnectedMessage)
-        }).promise();
+    if(!robotConnection) {
+        // TODO inform the client of problem
+        return;
+    }
+    // If found, add robotId to the client connection record
+    const updateConnectionParams = getUpdateClientConnectionParams(connectionId, robotConnection.ConnectionId);
+    try {
+        await ddb.update(updateConnectionParams).promise();
+    } catch (error) {
+        console.log(error);
+        return { statusCode: 500 };
     }
 
+    // Send CLIENT_PAIRED_WITH_ROBOT message to client with RobotId in the message
+    await postMessageToConnection("CLIENT_PAIRED_WITH_ROBOT", robotConnection.RobotId, connectionId);
+    
     return { statusCode: 200 };
 }

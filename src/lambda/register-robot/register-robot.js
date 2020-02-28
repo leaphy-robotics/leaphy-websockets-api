@@ -8,33 +8,53 @@ const apiGwMngmnt = new AWS.ApiGatewayManagementApi({
     endpoint: url
 })
 
+const getPairingCode = () => {
+    const randomNumberString = Math.floor(Math.random() * 999999)+"";
+    return randomNumberString.padStart(6, "0");
+}
+
+const postMessageToConnection = async (event, message, connectionId) => {
+    const payload = {
+        event: event,
+        message: message
+    };
+    await apiGwMngmnt.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify(payload)
+    }).promise();
+}
+
 exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
     const robotId = requestBody.robotId;
     const connectionId = event.requestContext.connectionId;
-    
-    // Add robotId to the robot connection record
+    const pairingCode = getPairingCode();
+    // Add robotId and pairingcode to the robot connection record
     const params = {
         TableName: tableName,
         Key: {
             ConnectionId: connectionId
         },
-        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b",
+        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b, PairingCode=:p",
         ExpressionAttributeValues:{
             ":r":robotId,
-            ":b":true
-        },
-        ReturnValues:"UPDATED_NEW"
+            ":b":true,
+            ":p":pairingCode
+        }
     }
     try {
-        const result = await ddb.update(params).promise();
+        await ddb.update(params).promise();
     } catch (error) {
         console.log(error);
+        throw error;
     }
 
+    postMessageToConnection('PAIRINGCODE_UPDATED', pairingCode, connectionId);
+
+    // Try to find the client connection to inform the client
     const queryParams = {
         TableName: tableName,
-        IndexName: "robotGSI",
+        IndexName: "RobotIdGSI",
         KeyConditionExpression: "#r = :rid",
         ExpressionAttributeNames: {
             "#r": "RobotId"
@@ -53,14 +73,7 @@ exports.handler = async (event, context) => {
     }
     const clientConnection = data.Items.filter((item) => item.IsRobotConnection === false)[0];
     if (clientConnection && clientConnection.ConnectionId) {
-        const robotRegisteredMessage = {
-            event: 'ROBOT_REGISTERED',
-            message: `Robot with ${robotId} just registered`
-        };
-        await apiGwMngmnt.postToConnection({
-            ConnectionId: clientConnection.ConnectionId,
-            Data: JSON.stringify(robotRegisteredMessage)
-        }).promise();
+        await postMessageToConnection('ROBOT_REGISTERED', `Robot with ${robotId} just registered`, clientConnection.ConnectionId);
     }
     
     return { statusCode: 200};

@@ -355,6 +355,9 @@ Resources:
         - 
           AttributeName: "RobotId"
           AttributeType: "S"
+        - 
+          AttributeName: "PairingCode"
+          AttributeType: "S"
       KeySchema:
         - 
           AttributeName: "ConnectionId"
@@ -365,7 +368,7 @@ Resources:
       TableName: !Sub "${EnvironmentParameter}-robocoder-ws-connections"
       GlobalSecondaryIndexes: 
         - 
-          IndexName: "robotGSI"
+          IndexName: "RobotIdGSI"
           KeySchema: 
             - 
               AttributeName: "RobotId"
@@ -374,6 +377,20 @@ Resources:
             NonKeyAttributes: 
               - "ConnectionId"
               - "IsRobotConnection"
+            ProjectionType: "INCLUDE"
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 2
+            WriteCapacityUnits: 2
+        - 
+          IndexName: "PairingCodeGSI"
+          KeySchema: 
+            - 
+              AttributeName: "PairingCode"
+              KeyType: "HASH"
+          Projection: 
+            NonKeyAttributes: 
+              - "ConnectionId"
+              - "RobotId"
             ProjectionType: "INCLUDE"
           ProvisionedThroughput: 
             ReadCapacityUnits: 2

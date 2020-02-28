@@ -29,7 +29,7 @@ exports.handler = async (event, context) => {
     // Find the robot connectionId using the RobotId
     const queryParams = {
         TableName: tableName,
-        IndexName: "robotGSI",
+        IndexName: "RobotIdGSI",
         KeyConditionExpression: "#r = :rid",
         ExpressionAttributeNames:{
             "#r": "RobotId"
