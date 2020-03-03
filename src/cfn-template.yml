@@ -7,7 +7,6 @@ Description:
 # TODO
 # - Add compile target S3 bucket
 # - Define function names for lambdas
-# - Configure response integration for Compile proxy lambda
 
 Parameters:
   EnvironmentParameter:
@@ -93,32 +92,15 @@ Resources:
           }
       Description: Invoked when an WS upgrade request succeeds
 
-  ConnectRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectLambda.Arn}/invocations"
-
   ConnectRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - ConnectRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: $connect
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${ConnectRouteIntegration}"
-
-  ConnectLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ConnectLambda
-      Principal: apigateway.amazonaws.com
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: $connect
+        LambdaArn: !GetAtt ConnectLambda.Arn
+        LambdaName: !Ref ConnectLambda
 
 
   PairClientLambda:
@@ -128,38 +110,45 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Handler: pair-client.handler
       CodeUri: lambda/pair-client/
-      Description: Pair a client to a registered robot
+      Description: Pairs a client to a robot
       Environment:
         Variables: 
           CONNECTIONS_TABLE : !Ref ConnectionsTable
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  PairClientRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PairClientLambda.Arn}/invocations"
-
   PairClientRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - PairClientRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: pair-client
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${PairClientRouteIntegration}"
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: pair-client
+        LambdaArn: !GetAtt PairClientLambda.Arn
+        LambdaName: !Ref PairClientLambda
 
-  PairClientLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
+
+  ReconnectClientLambda:
+    Type: AWS::Serverless::Function
     Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PairClientLambda
-      Principal: apigateway.amazonaws.com
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: reconnect-client.handler
+      CodeUri: lambda/reconnect-client/
+      Description: Reconnects a client to a robot
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
+
+  ReconnectClientRoute:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: reconnect-client
+        LambdaArn: !GetAtt ReconnectClientLambda.Arn
+        LambdaName: !Ref ReconnectClientLambda
 
 
   RegisterRobotLambda:
@@ -175,33 +164,15 @@ Resources:
           CONNECTIONS_TABLE : !Ref ConnectionsTable
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  RegisterRobotRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegisterRobotLambda.Arn}/invocations"
-
   RegisterRobotRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - RegisterRobotRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: register-robot
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${RegisterRobotRouteIntegration}"
-
-  RegisterRobotLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref RegisterRobotLambda
-      Principal: apigateway.amazonaws.com
-
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: register-robot
+        LambdaArn: !GetAtt RegisterRobotLambda.Arn
+        LambdaName: !Ref RegisterRobotLambda
 
   CompileProxyLambda:
     Type: AWS::Serverless::Function
@@ -217,32 +188,15 @@ Resources:
           COMPILE_LAMBDA: !Ref CompileLambda
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  CompileProxyRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CompileProxyLambda.Arn}/invocations"
-
   CompileProxyRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - CompileProxyRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: compile
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${CompileProxyRouteIntegration}"
-
-  CompileProxyLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref CompileProxyLambda
-      Principal: apigateway.amazonaws.com
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: compile
+        LambdaArn: !GetAtt CompileProxyLambda.Arn
+        LambdaName: !Ref CompileProxyLambda
 
 
   CompileLambda:
@@ -276,33 +230,16 @@ Resources:
           CONNECTIONS_TABLE : !Ref ConnectionsTable
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  DisconnectRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectLambda.Arn}/invocations"
-
   DisconnectRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - DisconnectRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: $disconnect
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${DisconnectRouteIntegration}"
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: $disconnect
+        LambdaArn: !GetAtt DisconnectLambda.Arn
+        LambdaName: !Ref DisconnectLambda
 
-  DisconnectLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref DisconnectLambda
-      Principal: apigateway.amazonaws.com
-         
 
   DefaultLambda:
     Type: AWS::Lambda::Function
@@ -317,32 +254,15 @@ Resources:
           }
       Description: Handles otherwise unhandled routes
 
-  DefaultRouteIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
-    Properties:
-      ApiId: !Ref WebsocketsAPI
-      Description: Lambda Integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DefaultLambda.Arn}/invocations"
-
   DefaultRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
-    DependsOn:
-      - DefaultRouteIntegration
+    Type: AWS::CloudFormation::Stack
     Properties:
-      ApiId: !Ref WebsocketsAPI
-      RouteKey: $default
-      AuthorizationType: NONE
-      Target: !Sub "integrations/${DefaultRouteIntegration}"
-
-  DefaultLambdaPermission:
-    Type: AWS::Lambda::Permission
-    DependsOn:
-      - WebsocketsAPI
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref DefaultLambda
-      Principal: apigateway.amazonaws.com
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: $default
+        LambdaArn: !GetAtt DefaultLambda.Arn
+        LambdaName: !Ref DefaultLambda
 
 
   ConnectionsTable: 
