@@ -51,38 +51,29 @@ const postMessageToConnection = async (event, message, connectionId) => {
 
 exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
-    const pairingCode = requestBody.pairingCode;
+    const robotId = requestBody.robotId;
     const connectionId = event.requestContext.connectionId;
-
-    // Find the robot with the pairing code
-    const findRobotParams = getRobotIdByPairingCodeParams(pairingCode);
-    let robotData;
-    try {
-        robotData = await ddb.query(findRobotParams).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
-    }
-    const robotConnection = robotData.Items.filter((item) => item.IsRobotConnection === true)[0];
-
-    if(!robotConnection) {
-        // TODO inform the client of problem
-        return;
-    }
-    // If found, add robotId to the client connection record
-    // And remove the robotId from any OTHER client connection records
-    throw Error();
-
-    const updateConnectionParams = getUpdateClientConnectionParams(connectionId, robotConnection.ConnectionId);
-    try {
-        await ddb.update(updateConnectionParams).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
-    }
-
-    // Send CLIENT_PAIRED_WITH_ROBOT message to client with RobotId in the message
-    await postMessageToConnection("CLIENT_PAIRED_WITH_ROBOT", robotConnection.RobotId, connectionId);
     
+    // Client does a reload, still has a RobotId in its local storage, and tries to reconnect with it
+    // If the connection was active less than 4 hours ago, reconnect
+
+    // Get the Client connection record
+
+    // If the record does not contain the same robotId, we need to re-pair
+
+    // If the lastActive timestamp is more than 4 hours old, we need to re-pair
+
+    // If not, we should check the robot connection
+
+    // If the robot connection is there
+    
+        // send the CLIENT_PAIRED_WITH_ROBOT message
+        // Update the lastActive time
+
+    // Else
+
+        // Inform the client of the robot not being there
+
+
     return { statusCode: 200 };
 }
