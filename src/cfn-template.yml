@@ -312,6 +312,7 @@ Resources:
             NonKeyAttributes: 
               - "ConnectionId"
               - "RobotId"
+              - "IsRobotConnection"
             ProjectionType: "INCLUDE"
           ProvisionedThroughput: 
             ReadCapacityUnits: 2
