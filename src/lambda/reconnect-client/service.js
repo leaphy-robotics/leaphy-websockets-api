@@ -101,4 +101,23 @@ exports.updateRobotRegistration = async (robotConnectionId, robotId, pairingCode
     const updateParams = {
         TableName: tableName,
         Key: {
-            ConnectionId: robotCon
+            ConnectionId: robotConnectionId
+        },
+        UpdateExpression: "set RobotId = :r, PairingCode = :p, IsRobotConnection=:b",
+        ExpressionAttributeValues: {
+            ":r": robotId,
+            ":p": pairingCode,
+            ":b": true
+        }
+    }
+
+    return await ddb.update(updateParams).promise();
+}
+
+
+exports.postMessageToConnection = async (message, connectionId) => {
+    await apiGwMngmnt.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify(message)
+    }).promise();
+}
