@@ -1,71 +1,34 @@
 const AWS = require('aws-sdk');
 const decomment = require('decomment');
 
+const service = require('./service.js');
+const messages = require('./messages.js');
+
 const lambda = new AWS.Lambda();
-const ddb = new AWS.DynamoDB.DocumentClient();
-const tableName = process.env.CONNECTIONS_TABLE;
 const lambdaName = process.env.COMPILE_LAMBDA;
-const url = process.env.CONNECTION_URL;
-const apiGwMngmnt = new AWS.ApiGatewayManagementApi({
-    apiVersion: '2018-11-29',
-    endpoint: url
-})
 
 exports.handler = async (event, context) => {
-    const connectionId = event.requestContext.connectionId;
+    const clientConnectionId = event.requestContext.connectionId;
     const requestBody = JSON.parse(event.body); 
     const robotId = requestBody.robotId;
     const sketch = decomment.text(requestBody.sketch);
 
-    const prepareMessage = {
-        event: 'PREPARING_COMPILATION_ENVIRONMENT',
-        message: `Preparing compilation pipeline`
-    };
-    await apiGwMngmnt.postToConnection({
-        ConnectionId: connectionId,
-        Data: JSON.stringify(prepareMessage)
-    }).promise();
+    await service.postMessageToConnection(messages.preparingCompilation, clientConnectionId);
 
-    // Find the robot connectionId using the RobotId
-    const queryParams = {
-        TableName: tableName,
-        IndexName: "RobotIdGSI",
-        KeyConditionExpression: "#r = :rid",
-        ExpressionAttributeNames:{
-            "#r": "RobotId"
-        },
-        ExpressionAttributeValues: {
-            ":rid": requestBody.robotId
-        }
-    };
+    const getRobotConnections = await service.getConnectionsByRobotId(robotId);
+    const robotConnections = getRobotConnections.Items.filter((item) => item.IsRobotConnection === true);
 
-    let data;
-    try {
-        data = await ddb.query(queryParams).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
+    if (!robotConnections.length) {
+        await service.postMessageToConnection(messages.robotNotRegistered, clientConnectionId);
+        return { statusCode: 200 };
     }
-    
-    const robotConnection = data.Items.filter((item) => item.IsRobotConnection === true)[0];
-
-    if(!robotConnection) {
-        const robotDisconnectedMessage = {
-            event: 'ROBOT_DISCONNECTED',
-            message: `Robot ${robotId} disconnected`
-        };
-        await apiGwMngmnt.postToConnection({
-            ConnectionId: connectionId,
-            Data: JSON.stringify(robotDisconnectedMessage)
-        }).promise();
-        return {statusCode: 200};
-    }
+    const robotConnectionId = robotConnections[0].ConnectionId;
 
     const payload = { 
         sketch: sketch,
         robotId: robotId,
-        clientConnectionId: event.requestContext.connectionId,
-        robotConnectionId: robotConnection.ConnectionId
+        clientConnectionId: clientConnectionId,
+        robotConnectionId: robotConnectionId
     };
     const params = {
         FunctionName: lambdaName,
@@ -73,9 +36,8 @@ exports.handler = async (event, context) => {
         Payload: JSON.stringify(payload)
     };
 
-    let result;
     try {
-        result = await lambda.invoke(params).promise();
+        await lambda.invoke(params).promise();
     } catch (error) {
         console.log(error);
         return { statusCode: 500 };

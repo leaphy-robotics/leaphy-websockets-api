@@ -1,88 +1,37 @@
-const tableName = process.env.CONNECTIONS_TABLE;
-const url = process.env.CONNECTION_URL;
-const AWS = require('aws-sdk');
-const ddb = new AWS.DynamoDB.DocumentClient();
-
-const apiGwMngmnt = new AWS.ApiGatewayManagementApi({
-    apiVersion: '2018-11-29',
-    endpoint: url
-})
-
-const getRobotIdByPairingCodeParams = (pairingCode) => {
-    const queryParams = {
-        TableName: tableName,
-        IndexName: "PairingCodeGSI",
-        KeyConditionExpression: "#p = :pid",
-        ExpressionAttributeNames: {
-            "#p": "PairingCode"
-        },
-        ExpressionAttributeValues: {
-            ":pid": pairingCode
-        }
-    };
-    return queryParams;
-}
-
-const getUpdateClientConnectionParams = (connectionId, robotId) => {
-    const updateParams = {
-        TableName: tableName,
-        Key: {
-            ConnectionId: connectionId
-        },
-        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b",
-        ExpressionAttributeValues: {
-            ":r": robotId,
-            ":b": false
-        }
-    }
-    return updateParams;
-}
-
-const postMessageToConnection = async (event, message, connectionId) => {
-    const payload = {
-        event: event,
-        message: message
-    };
-    await apiGwMngmnt.postToConnection({
-        ConnectionId: connectionId,
-        Data: JSON.stringify(payload)
-    }).promise();
-}
+const service = require('./service.js');
+const messages = require('./messages.js');
 
 exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
     const pairingCode = requestBody.pairingCode;
-    const connectionId = event.requestContext.connectionId;
+    const clientConnectionId = event.requestContext.connectionId;
 
     // Find the robot with the pairing code
-    const findRobotParams = getRobotIdByPairingCodeParams(pairingCode);
-    let robotData;
-    try {
-        robotData = await ddb.query(findRobotParams).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
-    }
-    const robotConnection = robotData.Items.filter((item) => item.IsRobotConnection === true)[0];
+    const getRobotConnections = await service.getConnectionsByPairingCode(pairingCode);
+    const robotConnections = getRobotConnections.Items.filter((item) => item.IsRobotConnection === true);
 
-    if(!robotConnection) {
-        // TODO inform the client of problem
-        return;
+    if(!robotConnections.length) {
+        await service.postMessageToConnection(messages.robotNotRegistered, clientConnectionId);
+        return { statusCode: 200 };
     }
-    // If found, add robotId to the client connection record
-    // And remove the robotId from any OTHER client connection records
-    throw Error();
 
-    const updateConnectionParams = getUpdateClientConnectionParams(connectionId, robotConnection.ConnectionId);
-    try {
-        await ddb.update(updateConnectionParams).promise();
-    } catch (error) {
-        console.log(error);
-        return { statusCode: 500 };
+    const robotId = robotConnections[0].RobotId;
+
+    // Remove any other pairings that may exist for this robot
+    const getOldPairings = await service.getConnectionsByRobotId(robotId);
+    const oldPairedClientConnections = getOldPairings.Items.filter((item) => item.IsRobotConnection === false);
+
+    if(oldPairedClientConnections.length) {
+        oldPairedClientConnections.forEach(async connection => {
+            await service.clearRobotId(connection.ConnectionId);
+        });
     }
+
+    // Add robotId to the client connection record
+    await service.updateRobotIdOnClient(clientConnectionId, robotId);
 
     // Send CLIENT_PAIRED_WITH_ROBOT message to client with RobotId in the message
-    await postMessageToConnection("CLIENT_PAIRED_WITH_ROBOT", robotConnection.RobotId, connectionId);
+    await service.postMessageToConnection(messages.clientPairedWithRobot(robotId), clientConnectionId);
     
     return { statusCode: 200 };
 }

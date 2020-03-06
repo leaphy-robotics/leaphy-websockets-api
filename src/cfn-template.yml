@@ -7,6 +7,7 @@ Description:
 # TODO
 # - Add compile target S3 bucket
 # - Define function names for lambdas
+# - Define default stage for api
 
 Parameters:
   EnvironmentParameter:

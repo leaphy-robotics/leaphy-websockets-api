@@ -1,79 +1,41 @@
-const tableName = process.env.CONNECTIONS_TABLE;
-const url = process.env.CONNECTION_URL;
-const AWS = require('aws-sdk');
-const ddb = new AWS.DynamoDB.DocumentClient();
-
-const apiGwMngmnt = new AWS.ApiGatewayManagementApi({
-    apiVersion: '2018-11-29',
-    endpoint: url
-})
-
-const getRobotIdByPairingCodeParams = (pairingCode) => {
-    const queryParams = {
-        TableName: tableName,
-        IndexName: "PairingCodeGSI",
-        KeyConditionExpression: "#p = :pid",
-        ExpressionAttributeNames: {
-            "#p": "PairingCode"
-        },
-        ExpressionAttributeValues: {
-            ":pid": pairingCode
-        }
-    };
-    return queryParams;
-}
-
-const getUpdateClientConnectionParams = (connectionId, robotId) => {
-    const updateParams = {
-        TableName: tableName,
-        Key: {
-            ConnectionId: connectionId
-        },
-        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b",
-        ExpressionAttributeValues: {
-            ":r": robotId,
-            ":b": false
-        }
-    }
-    return updateParams;
-}
-
-const postMessageToConnection = async (event, message, connectionId) => {
-    const payload = {
-        event: event,
-        message: message
-    };
-    await apiGwMngmnt.postToConnection({
-        ConnectionId: connectionId,
-        Data: JSON.stringify(payload)
-    }).promise();
-}
+const service = require('./service.js');
+const messages = require('./messages.js');
 
 exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body);
     const robotId = requestBody.robotId;
-    const connectionId = event.requestContext.connectionId;
-    
+    const clientConnectionId = event.requestContext.connectionId;
+
     // Client does a reload, still has a RobotId in its local storage, and tries to reconnect with it
     // If the connection was active less than 4 hours ago, reconnect
 
+    // First we should check the robot connection
+    const getRobotConnections = await service.getConnectionsByRobotId(robotId);
+    const robotConnections = getRobotConnections.Items.filter((item) => item.IsRobotConnection === true);
+
+    if (!robotConnections.length) {
+        await service.postMessageToConnection(messages.robotNotRegistered, clientConnectionId);
+        return { statusCode: 200 };
+    }
+
     // Get the Client connection record
+    const getClientConnections = await service.getConnectionsByConnectionId(clientConnectionId);
+    const clientConnection = getClientConnections.Items[0];
 
-    // If the record does not contain the same robotId, we need to re-pair
+    // If the Client Connection so indicates, we need to pair again.
+    const ticksThreeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
+    const timeThreshold = new Date(ticksThreeHoursAgo);
+    if (!clientConnection.RobotId
+        || clientConnection.RobotId != robotId
+        || clientConnection.LastActiveDateTime < timeThreshold) {
+        await service.postMessageToConnection(messages.pairingNeeded, clientConnectionId);
+        return { statusCode: 200 };
+    }
 
-    // If the lastActive timestamp is more than 4 hours old, we need to re-pair
-
-    // If not, we should check the robot connection
-
-    // If the robot connection is there
+    // Reconnecting consists of updating the lastActive time
+    await service.updateLastActiveTime(clientConnectionId);
+    // send the CLIENT_PAIRED_WITH_ROBOT message
+    await service.postMessageToConnection(messages.clientPairedWithRobot(robotId), clientConnectionId);
     
-        // send the CLIENT_PAIRED_WITH_ROBOT message
-        // Update the lastActive time
-
-    // Else
-
-        // Inform the client of the robot not being there
-
-
     return { statusCode: 200 };
 }

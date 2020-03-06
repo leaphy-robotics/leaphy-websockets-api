@@ -4,8 +4,8 @@ Websockets API Gateway based backend for Leaphy Robocoder
 
 ## Packaging and deploying Cloudformation locally
 
-`aws cloudformation package --template-file src/cfn-template.yml --s3-bucket robocoder-cfn-templates --output-template-file packaged-template.json`
-`aws cloudformation deploy --template-file C:\Dev\Leaphy\Repos\leaphy-websockets-api\packaged-template.json --stack-name robocoder-websockets-api  --capabilities CAPABILITY_NAMED_IAM`
+`aws cloudformation package --profile ll-liquidlogic --template-file src/cfn-template.yml --s3-bucket robocoder-cfn-templates --output-template-file packaged-template.json`
+`aws cloudformation deploy  --profile ll-liquidlogic --template-file C:\Dev\Leaphy\Repos\leaphy-websockets-api\packaged-template.json --stack-name robocoder-websockets-api  --capabilities CAPABILITY_NAMED_IAM --region eu-west-1`
 
 ## Testing
 
@@ -29,3 +29,10 @@ void loop() {
   delay(500);
 }
 ```
+
+## Useful commands for developing
+
+Making a Windows symlink to reuse lambda service and messages code:
+
+`mklink /H src\lambda\pair-client\service.js src\lambda\service.js`
+`mklink /H src\lambda\pair-client\messages.js src\lambda\messages.js`
