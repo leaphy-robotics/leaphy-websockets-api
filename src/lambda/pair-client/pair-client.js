@@ -23,7 +23,7 @@ exports.handler = async (event, context) => {
 
     if(oldPairedClientConnections.length) {
         oldPairedClientConnections.forEach(async connection => {
-            await service.clearRobotId(connection.ConnectionId);
+            await service.clearRobotIdFromClientConnection(connection.ConnectionId);
         });
     }
 

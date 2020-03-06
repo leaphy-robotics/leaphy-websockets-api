@@ -53,11 +53,11 @@ exports.getConnectionsByRobotId = async (robotId) => {
     return await ddb.query(queryParams).promise();
 }
 
-exports.updateLastActiveTime = async (connectionId) => {
+exports.updateLastActiveTime = async (clientConnectionId) => {
     const updateParams = {
         TableName: tableName,
         Key: {
-            ConnectionId: connectionId
+            ConnectionId: clientConnectionId
         },
         UpdateExpression: "set LastUpdateTime = :t",
         ExpressionAttributeValues: {
@@ -85,7 +85,7 @@ exports.updateRobotIdOnClient = async (clientConnectionId, robotId) => {
     return await ddb.update(updateParams).promise();
 }
 
-exports.clearRobotId = async (clientConnectionId) => {
+exports.clearRobotIdFromClientConnection = async (clientConnectionId) => {
     const updateParams = {
         TableName: tableName,
         Key: {
@@ -96,6 +96,24 @@ exports.clearRobotId = async (clientConnectionId) => {
 
     return await ddb.update(updateParams).promise();
 }
+
+exports.updateRobotRegistration = async (robotConnectionId, robotId, pairingCode) => {
+    const updateParams = {
+        TableName: tableName,
+        Key: {
+            ConnectionId: robotConnectionId
+        },
+        UpdateExpression: "set RobotId = :r, PairingCode = :p, IsRobotConnection=:b",
+        ExpressionAttributeValues: {
+            ":r": robotId,
+            ":p": pairingCode,
+            ":b": true
+        }
+    }
+
+    return await ddb.update(updateParams).promise();
+}
+
 
 exports.postMessageToConnection = async (message, connectionId) => {
     await apiGwMngmnt.postToConnection({

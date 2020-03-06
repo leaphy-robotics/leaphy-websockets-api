@@ -19,3 +19,15 @@ exports.preparingCompilation = {
     event: 'PREPARING_COMPILATION_ENVIRONMENT',
     message: `Preparing compilation pipeline`
 };
+
+exports.robotRegistered = {
+    event: 'ROBOT_REGISTERED',
+    message: `Your robot just registered itself`
+};
+
+exports.pairingCodeUpdated = (pairingCode) => {
+    return {
+        event: 'PAIRINGCODE_UPDATED',
+        message: pairingCode
+    }
+}
