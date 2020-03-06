@@ -61,6 +61,9 @@ Resources:
               - Effect: Allow
                 Action: apigateway:*
                 Resource: "arn:aws:apigateway:eu-west-1::*"
+              - Effect: Allow
+                Action: s3:PutObjectAcl
+                Resource: "*" # TODO Reference the bucket here
                 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSLambdaExecute
