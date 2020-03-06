@@ -114,6 +114,15 @@ exports.updateRobotRegistration = async (robotConnectionId, robotId, pairingCode
     return await ddb.update(updateParams).promise();
 }
 
+exports.deleteConnection = (connectionId) => {
+    return await ddb.delete({
+        TableName: tableName,
+        Key: {
+            ConnectionId: connectionId
+        },
+        ReturnValues: 'ALL_OLD'
+    }).promise();
+}
 
 exports.postMessageToConnection = async (message, connectionId) => {
     await apiGwMngmnt.postToConnection({
