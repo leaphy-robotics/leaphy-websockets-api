@@ -114,7 +114,7 @@ exports.updateRobotRegistration = async (robotConnectionId, robotId, pairingCode
     return await ddb.update(updateParams).promise();
 }
 
-exports.deleteConnection = (connectionId) => {
+exports.deleteConnection = async (connectionId) => {
     return await ddb.delete({
         TableName: tableName,
         Key: {

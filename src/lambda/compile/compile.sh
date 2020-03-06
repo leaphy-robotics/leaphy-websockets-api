@@ -23,7 +23,7 @@ function handler () {
     
     aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"BINARY_PUBLISHED\", \"message\": \"Sketch published\"}" --connection-id "$CLIENTCONNECTIONID"
 
-    aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"BINARY_PUBLISHED\", \"location\": \"$CLOUDDESTINATION\"}" --connection-id "$ROBOTCONNECTIONID"
+    aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"BINARY_PUBLISHED\", \"message\": \"$CLOUDDESTINATION\"}" --connection-id "$ROBOTCONNECTIONID"
     
     echo "$EVENT_DATA" 1>&2; #Sends the response
 }
