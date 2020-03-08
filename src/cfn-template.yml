@@ -19,7 +19,7 @@ Parameters:
     Description: Enter the environment this template should be deployed to. Default is test
   CompileLayerParameter:
     Type: String
-    Default: arn:aws:lambda:eu-west-1:728909196542:layer:leaphy-compile-lambda-runtime:3
+    Default: arn:aws:lambda:eu-west-1:728909196542:layer:leaphy-compile-lambda-runtime:4
     Description: Enter the layer used as custom runtime for the Compile lambda
 
 Resources:

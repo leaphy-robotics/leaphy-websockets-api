@@ -11,7 +11,11 @@ exports.handler = async (event, context) => {
     const clientConnectionId = event.requestContext.connectionId;
     const requestBody = JSON.parse(event.body); 
     const robotId = requestBody.robotId;
-    const sketch = decomment.text(requestBody.sketch);
+
+    let sketch = decomment.text(requestBody.sketch);
+    sketch = `#include "src/LeaphyEspOta.h" \nLeaphyEspOta Leaphy;\n` + sketch;
+    sketch = sketch.replace(/void\s*setup\s*\(\)[\n\r\s]*{/g, "void setup(){ Leaphy.setupOta();");
+    sketch = sketch.replace(/void\s*loop\s*\(\)[\n\r\s]*{/g, "void loop(){ Leaphy.handleLoop();");
 
     await service.postMessageToConnection(messages.preparingCompilation, clientConnectionId);
 
