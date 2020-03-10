@@ -215,7 +215,7 @@ Resources:
       Timeout: 60
       MemorySize: 3008
       Layers: 
-        - !Ref CompileLayerParameter
+        - arn:aws:lambda:eu-west-1:728909196542:layer:leaphy-compile-lambda-runtime:6
       Environment:
         Variables: 
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"

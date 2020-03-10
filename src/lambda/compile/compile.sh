@@ -10,14 +10,11 @@ function handler () {
     aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"COMPILATION_STARTED\", \"message\": \"Starting compilation\"}" --connection-id "$CLIENTCONNECTIONID"
     
     TIMESTAMP=$(echo $(($(date +%s%N)/1000000))) # Number of milliseconds since epoch
-    ROBOTDIR="${ROBOTID}/${TIMESTAMP}"
-    TEMPDIR="/tmp/$ROBOTDIR"
-    SOURCEDIR="$TEMPDIR/src"
-    mkdir -p $SOURCEDIR
-    cp ./lib/. $SOURCEDIR
-    LOCALDESTINATION="$TEMPDIR/sketch.ino"
-    CLOUDDESTINATION="s3://test-compiled/$ROBOTDIR/sketch.bin"
-    OBJECTURL="http://test-compiled.s3-eu-west-1.amazonaws.com/$ROBOTDIR/sketch.bin"
+    mkdir -p "/tmp/${ROBOTID}/${TIMESTAMP}"
+    cp lib/. /tmp/${ROBOTID}/${TIMESTAMP}/src/
+    LOCALDESTINATION="/tmp/${ROBOTID}/${TIMESTAMP}/sketch.ino"
+    CLOUDDESTINATION="s3://test-compiled/${ROBOTID}/${TIMESTAMP}/sketch.bin"
+    OBJECTURL="http://test-compiled.s3-eu-west-1.amazonaws.com/${ROBOTID}/${TIMESTAMP}/sketch.bin"
     printf "%s" "$SKETCH" > "$LOCALDESTINATION" #https://stackoverflow.com/a/49418406/1056283
     
     arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 $LOCALDESTINATION --config-file /opt/bin/arduino-cli.yaml
