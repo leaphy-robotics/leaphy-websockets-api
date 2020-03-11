@@ -53,32 +53,16 @@ exports.getConnectionsByRobotId = async (robotId) => {
     return await ddb.query(queryParams).promise();
 }
 
-exports.updateLastActiveTime = async (clientConnectionId) => {
-    const updateParams = {
-        TableName: tableName,
-        Key: {
-            ConnectionId: clientConnectionId
-        },
-        UpdateExpression: "set LastUpdateTime = :t",
-        ExpressionAttributeValues: {
-            ":t": Date.now()
-        }
-    }
-
-    return await ddb.update(updateParams).promise();
-}
-
 exports.updateRobotIdOnClient = async (clientConnectionId, robotId) => {
     const updateParams = {
         TableName: tableName,
         Key: {
             ConnectionId: clientConnectionId
         },
-        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b, LastUpdateTime = :t",
+        UpdateExpression: "set RobotId = :r, IsRobotConnection=:b",
         ExpressionAttributeValues: {
             ":r": robotId,
-            ":b": false,
-            ":t": Date.now()
+            ":b": false
         }
     }
 
@@ -91,7 +75,7 @@ exports.clearRobotIdFromClientConnection = async (clientConnectionId) => {
         Key: {
             ConnectionId: clientConnectionId
         },
-        UpdateExpression: "remove RobotId, LastUpdateTime"
+        UpdateExpression: "remove RobotId"
     }
 
     return await ddb.update(updateParams).promise();

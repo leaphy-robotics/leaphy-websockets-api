@@ -10,8 +10,8 @@ function handler () {
     aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"COMPILATION_STARTED\", \"message\": \"Starting compilation\"}" --connection-id "$CLIENTCONNECTIONID"
     
     TIMESTAMP=$(echo $(($(date +%s%N)/1000000))) # Number of milliseconds since epoch
-    mkdir -p "/tmp/${ROBOTID}/${TIMESTAMP}"
-    cp lib/. /tmp/${ROBOTID}/${TIMESTAMP}/src/
+    mkdir -p "/tmp/${ROBOTID}/${TIMESTAMP}/src"
+    cp lib/* /tmp/${ROBOTID}/${TIMESTAMP}/src/
     LOCALDESTINATION="/tmp/${ROBOTID}/${TIMESTAMP}/sketch.ino"
     CLOUDDESTINATION="s3://test-compiled/${ROBOTID}/${TIMESTAMP}/sketch.bin"
     OBJECTURL="http://test-compiled.s3-eu-west-1.amazonaws.com/${ROBOTID}/${TIMESTAMP}/sketch.bin"
