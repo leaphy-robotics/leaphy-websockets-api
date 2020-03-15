@@ -71,6 +71,7 @@ Resources:
   ConnectLambda:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-connect"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: index.handler
@@ -110,6 +111,7 @@ Resources:
   PairClientLambda:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-pair-client"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: pair-client.handler
@@ -134,6 +136,7 @@ Resources:
   ReconnectClientLambda:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-reconnect-client"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: reconnect-client.handler
@@ -158,6 +161,7 @@ Resources:
   RegisterRobotLambda:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-register-robot"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: register-robot.handler
@@ -178,9 +182,11 @@ Resources:
         LambdaArn: !GetAtt RegisterRobotLambda.Arn
         LambdaName: !Ref RegisterRobotLambda
 
+
   CompileProxyLambda:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-compile-proxy"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: compile-proxy.handler
@@ -206,6 +212,7 @@ Resources:
   CompileLambda:
     Type: AWS::Serverless::Function
     Properties: 
+      FunctionName: !Sub "${EnvironmentParameter}-ws-compile"
       Role: !GetAtt LambdaRole.Arn
       Description: >-
         Compiles a sketch to a binary and puts it to S3
@@ -220,10 +227,36 @@ Resources:
         Variables: 
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
 
-  
+
+  UpdateRobotLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-update-robot"
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: update-robot.handler
+      CodeUri: lambda/update-robot/
+      Description: Informs backend of impending robot update
+      Environment:
+        Variables: 
+          CONNECTIONS_TABLE : !Ref ConnectionsTable
+          CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
+
+  UpdateRobotRoute:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: cfn-api-route.yml
+      Parameters:
+        WebsocketsApiId: !Ref WebsocketsAPI
+        RouteKey: $update-robot
+        LambdaArn: !GetAtt UpdateRobotLambda.Arn
+        LambdaName: !Ref UpdateRobotLambda
+
+
   DisconnectLambda:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-disconnect"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: disconnect.handler
@@ -248,6 +281,7 @@ Resources:
   DefaultLambda:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName: !Sub "${EnvironmentParameter}-ws-default"
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: index.handler

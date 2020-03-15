@@ -36,16 +36,18 @@ if the pairing code has changed, then pairing will have to happen again
 const char* websockets_server = "wss://dmm59k8v96.execute-api.eu-west-1.amazonaws.com/test/";
 WebsocketsClient wsclient;
 WiFiClient wificlient;
-
+String robotId;
 void setupWifi(){
-  randomSeed(analogRead(0)); // Gets a random seed from analog pin noise
-  long randomNr = random(9999);
-  WiFiManager wifiManager;
-  const char* ssid = "Leaphy-" + randomNr;
-  Serial.print("Generated ssid: ");
-  Serial.println(ssid);
-  // TODO: Show ssid in screen
-  wifiManager.autoConnect(ssid);
+    robotId = WiFi.macAddress();
+    robotId.replace(":", "");
+
+    WiFiManager wifiManager;
+    char* ssid = "Leaphy-";
+    strcat(ssid, robotId.c_str());
+    Serial.print("Generated ssid: ");
+    Serial.println(ssid);
+    // TODO: Show ssid in screen
+    wifiManager.autoConnect(ssid);
 }
 
 void onMessageCallback(WebsocketsMessage message) {
@@ -53,17 +55,13 @@ void onMessageCallback(WebsocketsMessage message) {
     String messageData = message.data();
     Serial.println(messageData);
     String event = jsonExtract(messageData, "event");
-    Serial.print("Contains event: ");
-    Serial.println(event);
     // If pairing code, save and show it on the screen
     if(event == "PAIRINGCODE_UPDATED"){
-        Serial.print("Pairing Code Updated Message Received: ");
         String pairingCode = jsonExtract(messageData, "message");
-        Serial.println(pairingCode);
     } else if(event == "BINARY_PUBLISHED"){
-        Serial.print("Binary Published Message Received: ");
+        String registerMessage = "{ \"action\": \"update-robot\", \"robotId\": \"" + robotId + "\"}";
+        wsclient.send(registerMessage);
         String s3Location = jsonExtract(messageData, "message");
-        Serial.println(s3Location);
         t_httpUpdate_return ret = ESPhttpUpdate.update(wificlient, s3Location);
 		switch (ret) {
 			case HTTP_UPDATE_FAILED:
@@ -81,11 +79,22 @@ void onMessageCallback(WebsocketsMessage message) {
     }
 }
 
+void connectWS(){
+    // Connect to server
+    wsclient.connect(websockets_server);
+
+    // Register the robot with its mac address
+    String registerMessage = "{ \"action\": \"register-robot\", \"robotId\": \"" + robotId + "\"}";
+    wsclient.send(registerMessage);
+}
+
 void onEventsCallback(WebsocketsEvent event, String data) {
     if(event == WebsocketsEvent::ConnectionOpened) {
         Serial.println("Connnection Opened");
     } else if(event == WebsocketsEvent::ConnectionClosed) {
-        Serial.println("Connnection Closed");
+        // Immediately reconnect when connection is closed
+        Serial.println("Connnection Closed, reopening...");
+        connectWS();
     } else if(event == WebsocketsEvent::GotPing) {
         Serial.println("Got a Ping!");
     } else if(event == WebsocketsEvent::GotPong) {
@@ -100,13 +109,7 @@ void setupWS(){
     wsclient.onEvent(onEventsCallback);
     
     // Connect to server
-    wsclient.connect(websockets_server);
-
-    String robotId = WiFi.macAddress();
-    robotId.replace(":", "");
-    // Register the robot with its mac address
-    String registerMessage = "{ \"action\": \"register-robot\", \"robotId\": \"" + robotId + "\"}";
-    wsclient.send(registerMessage);
+    connectWS();
 }
 
 void LeaphyEspOta::setupOta(){
@@ -121,8 +124,3 @@ void LeaphyEspOta::handleLoop(){
 	// Handle the WS stuff
     wsclient.poll();
 }
-
-
-
-
-
