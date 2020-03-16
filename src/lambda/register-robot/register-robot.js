@@ -11,7 +11,7 @@ exports.handler = async (event, context) => {
     const robotConnectionId = event.requestContext.connectionId;
     const robotId = requestBody.robotId;
     const pairingCode = getPairingCode();
-    console.log(`Sending pairing code ${pairingCode} to robot ${robotId}`);
+    console.log(`Sending pairing code ${pairingCode} to robot ${robotId} using connection ${robotConnectionId}`);
 
     // Add robotId and pairingcode to the robot connection record
     await service.updateRobotRegistration(robotConnectionId, robotId, pairingCode);

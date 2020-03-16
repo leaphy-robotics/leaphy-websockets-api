@@ -33,8 +33,11 @@ if the pairing code has changed, then pairing will have to happen again
 */
 
 // The url probably be injected just before compilation time
-const char* websockets_server = "wss://dmm59k8v96.execute-api.eu-west-1.amazonaws.com/test/";
+const char* websockets_server = "wss://6lge1rqji3.execute-api.eu-west-1.amazonaws.com/test/";
+
 WebsocketsClient wsclient;
+boolean wsConnected = false;
+
 WiFiClient wificlient;
 String robotId;
 void setupWifi(){
@@ -79,37 +82,32 @@ void onMessageCallback(WebsocketsMessage message) {
     }
 }
 
-void connectWS(){
-    // Connect to server
-    wsclient.connect(websockets_server);
-
-    // Register the robot with its mac address
-    String registerMessage = "{ \"action\": \"register-robot\", \"robotId\": \"" + robotId + "\"}";
-    wsclient.send(registerMessage);
-}
-
-void onEventsCallback(WebsocketsEvent event, String data) {
-    if(event == WebsocketsEvent::ConnectionOpened) {
-        Serial.println("Connnection Opened");
-    } else if(event == WebsocketsEvent::ConnectionClosed) {
-        // Immediately reconnect when connection is closed
-        Serial.println("Connnection Closed, reopening...");
-        connectWS();
-    } else if(event == WebsocketsEvent::GotPing) {
-        Serial.println("Got a Ping!");
-    } else if(event == WebsocketsEvent::GotPong) {
-        Serial.println("Got a Pong!");
-    }
-}
+void onEventsCallback(WebsocketsEvent event, String data); 
 
 void setupWS(){
-    
     // Setup Callbacks
     wsclient.onMessage(onMessageCallback);
     wsclient.onEvent(onEventsCallback);
     
     // Connect to server
-    connectWS();
+    wsclient.connect(websockets_server);
+}
+
+void onEventsCallback(WebsocketsEvent event, String data) {
+    if(event == WebsocketsEvent::ConnectionOpened) {
+        wsConnected = true;
+        Serial.println("Connnection Opened, registering robot");
+        // Register the robot with its mac address
+        String registerMessage = "{ \"action\": \"register-robot\", \"robotId\": \"" + robotId + "\"}";
+        wsclient.send(registerMessage);
+    } else if(event == WebsocketsEvent::ConnectionClosed) {
+        Serial.println("Connnection Closed");
+        wsConnected = false;
+    } else if(event == WebsocketsEvent::GotPing) {
+        Serial.println("Got a Ping!");
+    } else if(event == WebsocketsEvent::GotPong) {
+        Serial.println("Got a Pong!");
+    }
 }
 
 void LeaphyEspOta::setupOta(){
@@ -122,5 +120,11 @@ void LeaphyEspOta::setupOta(){
 
 void LeaphyEspOta::handleLoop(){
 	// Handle the WS stuff
-    wsclient.poll();
+    if(wsConnected){
+        wsclient.poll();
+    } else {
+        Serial.println("Reopening Connection");
+        wsclient = WebsocketsClient();
+        setupWS();
+    }
 }

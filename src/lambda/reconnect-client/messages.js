@@ -22,7 +22,7 @@ exports.preparingCompilation = {
 
 exports.robotRegistered = {
     event: 'ROBOT_REGISTERED',
-    message: `Your robot just registered itself`
+    message: `Robot ready for use`
 };
 
 exports.pairingCodeUpdated = (pairingCode) => {
@@ -30,4 +30,14 @@ exports.pairingCodeUpdated = (pairingCode) => {
         event: 'PAIRINGCODE_UPDATED',
         message: pairingCode
     }
-}
+};
+
+exports.robotUpdating = {
+    event: 'ROBOT_UPDATING',
+    message: `Robot starting flashing process`
+};
+
+exports.clientReconnectedWithRobot = {
+    event: 'CLIENT_RECONNECTED_WITH_ROBOT',
+    message: `Successfully reconnected with robot`
+};

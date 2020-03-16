@@ -248,7 +248,7 @@ Resources:
       TemplateURL: cfn-api-route.yml
       Parameters:
         WebsocketsApiId: !Ref WebsocketsAPI
-        RouteKey: $update-robot
+        RouteKey: update-robot
         LambdaArn: !GetAtt UpdateRobotLambda.Arn
         LambdaName: !Ref UpdateRobotLambda
 

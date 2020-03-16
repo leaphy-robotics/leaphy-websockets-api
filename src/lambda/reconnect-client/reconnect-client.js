@@ -28,8 +28,8 @@ exports.handler = async (event, context) => {
     }
 
     await service.updateRobotIdOnClient(clientConnectionId, robotId);
-    // send the CLIENT_PAIRED_WITH_ROBOT message
-    await service.postMessageToConnection(messages.clientPairedWithRobot(robotId), clientConnectionId);
+    // send the CLIENT_RECONNECTED_WITH_ROBOT message
+    await service.postMessageToConnection(messages.clientReconnectedWithRobot, clientConnectionId);
 
     return { statusCode: 200 };
 }

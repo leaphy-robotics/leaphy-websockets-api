@@ -9,7 +9,7 @@ function handler () {
     echo "Sending Compilation started message to client"
     aws apigatewaymanagementapi post-to-connection --endpoint $ENDPOINT --data "{\"event\": \"COMPILATION_STARTED\", \"message\": \"Compiling\"}" --connection-id "$CLIENTCONNECTIONID"
     
-    rm -rd "/tmp/${ROBOTID}"
+    rm -rdf "/tmp/${ROBOTID}"
     mkdir -p "/tmp/${ROBOTID}/src"
     cp lib/* /tmp/${ROBOTID}/src/
     LOCALDESTINATION="/tmp/${ROBOTID}/sketch.ino"

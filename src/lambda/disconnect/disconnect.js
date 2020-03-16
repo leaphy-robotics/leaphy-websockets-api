@@ -11,7 +11,7 @@ exports.handler = async (event, context) => {
         return { statusCode: 200 }
     }
 
-    const robotId = result.Attributes.RobotId;
+    const robotId = deleteConnectionResponse.Attributes.RobotId;
     const getPairedClientConnectionQuery = await service.getConnectionsByRobotId(robotId);
     const clientConnections = getPairedClientConnectionQuery.Items.filter((item) => item.IsRobotConnection === false);
 
