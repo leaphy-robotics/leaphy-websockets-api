@@ -197,6 +197,7 @@ Resources:
           CONNECTIONS_TABLE : !Ref ConnectionsTable
           COMPILE_LAMBDA: !Ref CompileLambda
           CONNECTION_URL : !Sub "https://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}"
+          SERVER_URL : !Sub "wss://${WebsocketsAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentParameter}/"
 
   CompileProxyRoute:
     Type: AWS::CloudFormation::Stack

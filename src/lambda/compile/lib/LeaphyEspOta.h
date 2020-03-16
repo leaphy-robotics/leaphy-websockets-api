@@ -9,6 +9,7 @@
 
 class LeaphyEspOta {
 	public:
+		LeaphyEspOta(char* serverUrl);
 		void setupOta();
 		void handleLoop();
 };

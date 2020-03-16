@@ -10,36 +10,21 @@
 
 using namespace websockets;
 
-/*
-Leaphy robot is switched on
-It can't connect to internet
-It shows SSID of Wifi network (random Leaphy-XXXX)
-Peoples connect it to WiFi
-It registers itself to api using MAC address
-It receives and shows a pairing code
-Peoples pair their client using this code
-Client is linked to robot using MAC address
-
-People upload new sketch to API
-Robot gets location from API and updates itself
-After update, it can connect to WiFi
-It registers itself as being back
-It gets the same pairing code
-
-the client disconnects (but remembers the last pairing code)
-if the pairing code is still valid, it will pair automatically
-if the pairing code has changed, then pairing will have to happen again
-
-*/
-
-// The url probably be injected just before compilation time
-const char* websockets_server = "wss://6lge1rqji3.execute-api.eu-west-1.amazonaws.com/test/";
+// The url is injected just before compilation time
+const char* ServerUrl;
+//const char* ServerUrl = "wss://6lge1rqji3.execute-api.eu-west-1.amazonaws.com/test/";
 
 WebsocketsClient wsclient;
 boolean wsConnected = false;
 
 WiFiClient wificlient;
 String robotId;
+
+LeaphyEspOta::LeaphyEspOta(char* serverUrl)
+{
+	ServerUrl = serverUrl;
+}
+
 void setupWifi(){
     robotId = WiFi.macAddress();
     robotId.replace(":", "");
@@ -90,7 +75,7 @@ void setupWS(){
     wsclient.onEvent(onEventsCallback);
     
     // Connect to server
-    wsclient.connect(websockets_server);
+    wsclient.connect(ServerUrl);
 }
 
 void onEventsCallback(WebsocketsEvent event, String data) {
